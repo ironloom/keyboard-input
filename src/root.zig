@@ -1,14 +1,13 @@
-//! By convention, root.zig is the root source file when making a library. If
-//! you are making an executable, the convention is to delete this file and
-//! start with main.zig instead.
 const std = @import("std");
 const Allocator = @import("std").mem.Allocator;
-const testing = std.testing;
+
 const Inputter = @import("Inputter.zig");
 const OSXInputter = @import("./Inputters/OSX.zig").OSXInputter;
+const WindowsInputter = @import("./Inputters/Windows.zig").WindowsInputter;
 
 const inputter: ?Inputter = switch (@import("builtin").os.tag) {
     .macos => OSXInputter,
+    .windows => WindowsInputter,
     else => null,
 };
 var initalised = false;
