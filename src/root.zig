@@ -51,7 +51,6 @@ pub export fn getKeyDown(key: u8) bool {
     if (!initalised) return false;
 
     const inp = inputter orelse return false;
-    std.log.debug("asdasd", .{});
     return inp.getKeyDown(key);
 }
 

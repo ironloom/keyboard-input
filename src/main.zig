@@ -20,7 +20,7 @@ pub fn main() !void {
     kb_input.init();
     defer kb_input.deinit();
 
-    while (!kb_input.getKeyDown(4)) {
+    while (!kb_input.getKeyDown('a')) {
         kb_input.update();
     }
 
