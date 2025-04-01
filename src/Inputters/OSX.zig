@@ -13,7 +13,7 @@ var last_keymap_buffer: []bool = undefined;
 var IOHIDManager: c.IOHIDManagerRef = undefined;
 var alloc: Allocator = std.heap.smp_allocator;
 var initalised = false;
-var lastlen: u64 = 0;
+var is_key_pressed = false;
 
 fn callback(_: ?*anyopaque, _: c.IOReturn, _: ?*anyopaque, value: c.IOHIDValueRef) callconv(.C) void {
     const element: c.IOHIDElementRef = c.IOHIDValueGetElement(value);
@@ -24,14 +24,11 @@ fn callback(_: ?*anyopaque, _: c.IOReturn, _: ?*anyopaque, value: c.IOHIDValueRe
 
     const pressed = c.IOHIDValueGetIntegerValue(value);
 
-    const key = std.math.cast(u8, usage);
-    if (key == null) return;
+    const key = std.math.cast(u8, usage) orelse return;
+    if (pressed == 0) return;
 
-    if (pressed != 0) {
-        keymap_buffer[key.?] = true;
-        return;
-    }
-    keymap_buffer[key.?] = false;
+    keymap_buffer[key] = true;
+    is_key_pressed = true;
 }
 
 fn init(allocator: Allocator) !void {
@@ -54,6 +51,7 @@ fn update() void {
     if (!initalised)
         return;
 
+    is_key_pressed = false;
     @memcpy(last_keymap_buffer, keymap_buffer);
     _ = c.CFRunLoopRunInMode(c.kCFRunLoopDefaultMode, 0.01, c.TRUE);
 }
@@ -82,6 +80,10 @@ fn getKeyUp(k: u8) bool {
     return !getKey(k);
 }
 
+fn keyPressed() bool {
+    return is_key_pressed;
+}
+
 pub const OSXInputter: Inputter = .{
     .init = init,
     .update = update,
@@ -89,11 +91,7 @@ pub const OSXInputter: Inputter = .{
     .getKey = getKey,
     .getKeyDown = getKeyDown,
     .getKeyUp = getKeyUp,
-    .keyPressed = struct {
-        pub fn callback() bool {
-            return true;
-        }
-    }.callback,
+    .keyPressed = keyPressed,
 };
 
 fn convertAsciiToAppleMagicCode(key: u8) u8 {
