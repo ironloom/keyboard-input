@@ -17,7 +17,9 @@ pub fn main() !void {
     kb_input.init();
     defer kb_input.deinit();
 
-    while (!kb_input.getKeyDown('a')) {
+    while (true) {
+        if (kb_input.getKeyDown('a')) break;
+
         kb_input.update();
     }
 }

@@ -43,6 +43,11 @@ fn init(allocator: Allocator) !void {
     keymap_buffer = try allocator.alloc(bool, std.math.maxInt(u8));
     last_keymap_buffer = try allocator.alloc(bool, std.math.maxInt(u8));
 
+    for (keymap_buffer) |*slot| {
+        slot.* = false;
+    }
+    @memcpy(last_keymap_buffer, keymap_buffer);
+
     alloc = allocator;
     initalised = true;
 }
@@ -53,6 +58,11 @@ fn update() void {
 
     is_key_pressed = false;
     @memcpy(last_keymap_buffer, keymap_buffer);
+
+    for (keymap_buffer) |*slot| {
+        slot.* = false;
+    }
+
     _ = c.CFRunLoopRunInMode(c.kCFRunLoopDefaultMode, 0.01, c.TRUE);
 }
 
