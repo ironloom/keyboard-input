@@ -19,6 +19,7 @@ pub fn main() !void {
 
     while (true) {
         if (kb_input.getKeyDown('a')) break;
+        if (kb_input.getKey('w')) std.log.debug("w", .{});
 
         kb_input.update();
     }

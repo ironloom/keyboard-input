@@ -21,14 +21,13 @@ fn callback(_: ?*anyopaque, _: c.IOReturn, _: ?*anyopaque, value: c.IOHIDValueRe
     const usage = c.IOHIDElementGetUsage(element);
 
     if (usagePage != c.kHIDPage_KeyboardOrKeypad) return;
-
     const pressed = c.IOHIDValueGetIntegerValue(value);
 
     const key = std.math.cast(u8, usage) orelse return;
-    if (pressed == 0) return;
+    keymap_buffer[key] = pressed != 0;
 
-    keymap_buffer[key] = true;
-    is_key_pressed = true;
+    if (pressed != 0)
+        is_key_pressed = true;
 }
 
 fn init(allocator: Allocator) !void {
@@ -58,11 +57,6 @@ fn update() void {
 
     is_key_pressed = false;
     @memcpy(last_keymap_buffer, keymap_buffer);
-
-    for (keymap_buffer) |*slot| {
-        slot.* = false;
-    }
-
     _ = c.CFRunLoopRunInMode(c.kCFRunLoopDefaultMode, 0.01, c.TRUE);
 }
 
