@@ -150,7 +150,7 @@ fn update() void {
 
     const bytes_read = c.read(input_device_file.handle, &event, @sizeOf(c.input_event));
     _ = bytes_read;
-    if (event.type == c.EV_KEY) keymap_buffer[event.code] = @intFromBool(event.value);
+    if (event.type == c.EV_KEY) keymap_buffer[event.code] = event.value == 0;
 }
 
 fn deinit() void {
