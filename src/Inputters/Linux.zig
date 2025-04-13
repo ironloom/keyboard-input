@@ -164,16 +164,16 @@ fn deinit() void {
 }
 
 fn getKey(k: u8) bool {
-    return keymap_buffer[k];
+    return keymap_buffer[convertAsciiToLinuxMagicCode(k)];
 }
 
 fn getKeyDown(k: u8) bool {
-    if (last_keymap_buffer[k]) return false;
+    if (last_keymap_buffer[convertAsciiToLinuxMagicCode(k)]) return false;
     return getKey(k);
 }
 
 fn getKeyUp(k: u8) bool {
-    if (!last_keymap_buffer[k]) return false;
+    if (!last_keymap_buffer[convertAsciiToLinuxMagicCode(k)]) return false;
     return !getKey(k);
 }
 
