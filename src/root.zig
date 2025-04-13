@@ -4,10 +4,12 @@ const Allocator = @import("std").mem.Allocator;
 const Inputter = @import("Inputter.zig");
 const OSXInputter = @import("./Inputters/OSX.zig").OSXInputter;
 const WindowsInputter = @import("./Inputters/Windows.zig").WindowsInputter;
+const LinuxInputter = @import("./Inputters/Linux.zig").LinuxInputter;
 
 const inputter: ?Inputter = switch (@import("builtin").os.tag) {
     .macos => OSXInputter,
     .windows => WindowsInputter,
+    .linux => LinuxInputter,
     else => null,
 };
 var initalised = false;
