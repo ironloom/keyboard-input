@@ -36,17 +36,12 @@ fn findKeyboard() !?[]u8 {
         });
         defer allocator.free(path);
 
-        std.log.debug("path: {s}", .{path});
-
         var file = try dir.openFile(entry.name, .{ .mode = .read_only });
         defer file.close();
 
         const file_descriptor = file.handle;
         var name: [256]u8 = [_]u8{0} ** 256;
-        const res = c.ioctl(file_descriptor, c.EVIOCGNAME(8 * 256), &name);
-
-        std.log.debug("ioctl result: {d}", .{res});
-        std.log.debug("- name: {s}", .{name});
+        _ = c.ioctl(file_descriptor, c.EVIOCGNAME(8 * 256), &name);
 
         if (std.mem.containsAtLeast(
             u8,

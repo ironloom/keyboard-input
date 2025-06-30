@@ -11,7 +11,6 @@ var keymap_buffer: []bool = undefined;
 var last_keymap_buffer: []bool = undefined;
 var alloc: Allocator = std.heap.smp_allocator;
 var initalised = false;
-var is_key_pressed = false;
 
 fn init(allocator: Allocator) !void {
     keymap_buffer = try allocator.alloc(bool, std.math.maxInt(u8));
@@ -29,16 +28,6 @@ fn init(allocator: Allocator) !void {
 fn update() void {
     if (!initalised)
         return;
-
-    // var keyboardstate: [256]u8 = undefined;
-    // _ = c.GetKeyboardState(&keyboardstate);
-
-    // for (keyboardstate) |state| {
-    //     if (state == 0) continue;
-
-    //     is_key_pressed = true;
-    //     break;
-    // }
 
     @memcpy(last_keymap_buffer, keymap_buffer);
 
@@ -74,7 +63,11 @@ fn getKeyUp(k: u8) bool {
 }
 
 fn keyPressed() bool {
-    return is_key_pressed;
+    for (keymap_buffer) |entry| {
+        if (entry) return true;
+    }
+
+    return false;
 }
 
 pub const WindowsInputter: Inputter = .{

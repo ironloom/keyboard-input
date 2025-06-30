@@ -16,17 +16,18 @@ var initalised = false;
 
 pub export fn init() void {
     const inp = inputter orelse {
-        std.log.err("Keyboard does not support OS", .{});
+        std.log.err("keyboard-input does not support OS", .{});
         return;
     };
 
     inp.init(std.heap.smp_allocator) catch {
-        std.log.err("Keyboard init failed", .{});
+        std.log.err("keyboard init failed", .{});
         return;
     };
     initalised = true;
 }
 
+/// Call every frame to update the keyboard state.
 pub export fn update() void {
     if (!initalised) return;
 
@@ -41,6 +42,7 @@ pub export fn deinit() void {
     inp.deinit();
 }
 
+/// Returns the current keystate, `true` if the key is pressed, `false` if not.
 pub export fn getKey(key: u8) bool {
     if (!initalised) return false;
 
@@ -48,6 +50,7 @@ pub export fn getKey(key: u8) bool {
     return inp.getKey(key);
 }
 
+/// Returns whether or not the key has been pressed for the first time.
 pub export fn getKeyDown(key: u8) bool {
     if (!initalised) return false;
 
@@ -55,6 +58,7 @@ pub export fn getKeyDown(key: u8) bool {
     return inp.getKeyDown(key);
 }
 
+/// Returns true when the key is released.
 pub export fn getKeyUp(key: u8) bool {
     if (!initalised) return false;
 
@@ -62,6 +66,8 @@ pub export fn getKeyUp(key: u8) bool {
     return inp.getKeyUp(key);
 }
 
+/// Checks is any key has been pressed.
+/// **NOTE: THIS MAY NOT WORK CORRECTLY.** 
 pub export fn keyPressed() bool {
     if (!initalised) return false;
 
