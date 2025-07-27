@@ -14,11 +14,11 @@ pub fn main() !void {
     // are implementing gzip, then only the compressed bytes should be sent to
     // stdout, not any debugging messages.
 
-    kb_input.init();
+    kb_input.init(std.heap.smp_allocator);
     defer kb_input.deinit();
 
     while (true) {
-        if (kb_input.getKeyDown('a')) break;
+        if (kb_input.keyPressed()) break;
         if (kb_input.getKey('w')) std.log.debug("w", .{});
 
         kb_input.update();

@@ -3,25 +3,25 @@ const Allocator = @import("std").mem.Allocator;
 
 const Inputter = @import("../Inputter.zig");
 
+const BUFFER_LEN: comptime_int = std.math.maxInt(u8);
 pub const c = @cImport({
     @cInclude("windows.h");
 });
 
-var keymap_buffer: []bool = undefined;
-var last_keymap_buffer: []bool = undefined;
-var alloc: Allocator = std.heap.smp_allocator;
+var keymap_frame_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
+var keymap_cache_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
+var default: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
+
 var initalised = false;
 
-fn init(allocator: Allocator) !void {
-    keymap_buffer = try allocator.alloc(bool, std.math.maxInt(u8));
-    last_keymap_buffer = try allocator.alloc(bool, std.math.maxInt(u8));
+inline fn getKeyState(key_code: anytype) bool {
+    return switch (comptime @typeInfo(@TypeOf(key_code))) {
+        .int, .comptime_int => c.GetKeyState((@intCast(@max(@min(std.math.maxInt(c_short), key_code), 0)))) < 0,
+        else => return false,
+    };
+}
 
-    for (keymap_buffer) |*slot| {
-        slot.* = false;
-    }
-    @memcpy(last_keymap_buffer, keymap_buffer);
-
-    alloc = allocator;
+fn init(_: Allocator) !void {
     initalised = true;
 }
 
@@ -29,48 +29,50 @@ fn update() void {
     if (!initalised)
         return;
 
-    @memcpy(last_keymap_buffer, keymap_buffer);
-
-    for (keymap_buffer) |*slot| {
-        slot.* = false;
-    }
+    @memcpy(&keymap_cache_buffer, &keymap_frame_buffer);
+    @memcpy(&keymap_frame_buffer, &default);
 }
 
-fn deinit() void {
-    if (!initalised)
-        return;
-
-    alloc.free(keymap_buffer);
-    alloc.free(last_keymap_buffer);
-}
+fn deinit() void {}
 
 fn getKey(k: u8) bool {
+    if (!initalised) return;
+
     const key = std.ascii.toUpper(k);
-    keymap_buffer[key] = c.GetKeyState(@intCast(key)) < 0;
-    return keymap_buffer[key];
+
+    keymap_frame_buffer[key] = getKeyState(key);
+    return keymap_frame_buffer[key];
 }
 
 fn getKeyDown(k: u8) bool {
+    if (!initalised) return;
+
     const key = std.ascii.toUpper(k);
-    if (last_keymap_buffer[key]) return false;
+
+    if (keymap_cache_buffer[key]) return false;
     return getKey(k);
 }
 
 fn getKeyUp(k: u8) bool {
+    if (!initalised) return;
+
     const key = std.ascii.toUpper(k);
-    if (!last_keymap_buffer[key]) return false;
+
+    if (!keymap_cache_buffer[key]) return false;
     return !getKey(k);
 }
 
 fn keyPressed() bool {
-    for (keymap_buffer) |entry| {
-        if (entry) return true;
+    if (!initalised) return;
+
+    for (0..256) |index| {
+        if (getKeyState(std.ascii.toUpper(index))) return true;
     }
 
     return false;
 }
 
-pub const WindowsInputter: Inputter = .{
+pub const inputter: Inputter = .{
     .init = init,
     .update = update,
     .deinit = deinit,
