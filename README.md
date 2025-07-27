@@ -3,6 +3,9 @@
     <h1>Keyboard Input</h1>
     <p>The Keyboard Input handling library you were looking for.</p>
 </div>
+ 
+> [!important]
+> This library currently only supports ASCII characters.
 
 ## Installing the Library
 1. Fetch the dependency:
