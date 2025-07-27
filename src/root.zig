@@ -1,10 +1,11 @@
 const std = @import("std");
-const Allocator = @import("std").mem.Allocator;
+const Allocator = std.mem.Allocator;
 
 const Inputter = @import("Inputter.zig");
-const MacOS_Inputter = @import("./Inputters/OSX.zig").OSXInputter;
+
 const Windows_Inputter = @import("./Inputters/Windows.zig").inputter;
-const Linux_Inputter = @import("./Inputters/Linux.zig").LinuxInputter;
+const MacOS_Inputter = @import("./Inputters/OSX.zig").inputter;
+const Linux_Inputter = @import("./Inputters/Linux.zig").inputter;
 
 const inputter: ?Inputter = switch (@import("builtin").os.tag) {
     .macos => MacOS_Inputter,
@@ -27,7 +28,8 @@ pub fn init(allocator: Allocator) !void {
     initalised = true;
 }
 
-pub export fn initUnsafe() void {
+/// This calls `init()` with the `std.heap.smp_allocator`. Handles setup error by aborting the process.
+pub export fn initSafe() void {
     init(std.heap.smp_allocator) catch {
         std.log.err("keyboard-input setup failed", .{});
     };

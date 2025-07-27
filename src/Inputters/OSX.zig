@@ -88,7 +88,7 @@ fn keyPressed() bool {
     return is_key_pressed;
 }
 
-pub const OSXInputter: Inputter = .{
+pub const inputter: Inputter = .{
     .init = init,
     .update = update,
     .deinit = deinit,

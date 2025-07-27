@@ -176,7 +176,7 @@ fn keyPressed() bool {
     return is_key_pressed;
 }
 
-pub const LinuxInputter: Inputter = .{
+pub const inputter: Inputter = .{
     .init = init,
     .update = update,
     .deinit = deinit,
