@@ -15,7 +15,7 @@ var alloc: Allocator = std.heap.smp_allocator;
 var initalised = false;
 var is_key_pressed = false;
 
-fn callback(_: ?*anyopaque, _: c.IOReturn, _: ?*anyopaque, value: c.IOHIDValueRef) callconv(.C) void {
+fn callback(_: ?*anyopaque, _: c.IOReturn, _: ?*anyopaque, value: c.IOHIDValueRef) callconv(.c) void {
     const element: c.IOHIDElementRef = c.IOHIDValueGetElement(value);
     const usagePage = c.IOHIDElementGetUsagePage(element);
     const usage = c.IOHIDElementGetUsage(element);

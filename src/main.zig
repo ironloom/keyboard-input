@@ -14,7 +14,7 @@ pub fn main() !void {
     // are implementing gzip, then only the compressed bytes should be sent to
     // stdout, not any debugging messages.
 
-    kb_input.init(std.heap.smp_allocator);
+    try kb_input.init(std.heap.smp_allocator);
     defer kb_input.deinit();
 
     while (true) {
