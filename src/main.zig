@@ -17,10 +17,9 @@ pub fn main() !void {
     try kb_input.init(std.heap.smp_allocator);
     defer kb_input.deinit();
 
-    while (true) {
-        if (kb_input.keyPressed()) break;
-        if (kb_input.getKey('w')) std.log.debug("w", .{});
-
+    while (!kb_input.getKeyDown('q')) {
         kb_input.update();
+
+        if (kb_input.getKeyDown('w')) std.log.debug("w", .{});
     }
 }

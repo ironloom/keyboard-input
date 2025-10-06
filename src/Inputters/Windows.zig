@@ -31,6 +31,15 @@ fn update() void {
 
     @memcpy(&keymap_cache_buffer, &keymap_frame_buffer);
     @memcpy(&keymap_frame_buffer, &default);
+
+    for (0..BUFFER_LEN) |index| {
+        if (!getKeyState(std.ascii.toUpper(@intCast(@min(255, index))))) {
+            keymap_frame_buffer[index] = false;
+            continue;
+        }
+
+        keymap_frame_buffer[index] = true;
+    }
 }
 
 fn deinit() void {
@@ -40,10 +49,7 @@ fn deinit() void {
 fn getKey(k: u8) bool {
     if (!initalised) return false;
 
-    const key = std.ascii.toUpper(k);
-
-    keymap_frame_buffer[key] = getKeyState(key);
-    return keymap_frame_buffer[key];
+    return keymap_frame_buffer[std.ascii.toUpper(k)];
 }
 
 fn getKeyDown(k: u8) bool {
@@ -67,8 +73,8 @@ fn getKeyUp(k: u8) bool {
 fn keyPressed() bool {
     if (!initalised) return false;
 
-    for (0..256) |index| {
-        if (getKeyState(std.ascii.toUpper(@intCast(@max(255, index))))) return true;
+    for (keymap_frame_buffer) |key| {
+        if (key) return true;
     }
 
     return false;
