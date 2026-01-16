@@ -20,6 +20,6 @@ pub fn main() !void {
     while (!kb_input.getKeyDown('q')) {
         kb_input.update();
 
-        if (kb_input.getKeyDown('w')) std.log.debug("w", .{});
+        if (kb_input.getKey('w')) std.log.debug("w", .{});
     }
 }
