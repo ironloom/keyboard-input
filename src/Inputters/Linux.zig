@@ -5,9 +5,11 @@ const Inputter = @import("../Inputter.zig");
 const c = @import("c");
 const event_path: []const u8 = "/dev/input";
 
+const BUFFER_LEN: comptime_int = std.math.maxInt(u8);
+
 var allocator: Allocator = std.heap.smp_allocator;
-var keymap_buffer: []bool = undefined;
-var last_keymap_buffer: []bool = undefined;
+var keymap_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
+var last_keymap_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
 var initalised = false;
 var is_key_pressed = false;
 var input_device_file: std.fs.File = undefined;
@@ -114,10 +116,13 @@ fn convertAsciiToLinuxMagicCode(ascii: u8) u8 {
 fn init(alloc: Allocator) !void {
     allocator = alloc;
 
-    keymap_buffer = try allocator.alloc(bool, std.math.maxInt(u8));
-    last_keymap_buffer = try allocator.alloc(bool, std.math.maxInt(u8));
+    for (&keymap_buffer) |*slot| {
+        slot.* = false;
+    }
+    @memcpy(&last_keymap_buffer, &keymap_buffer);
 
     const path = try findKeyboard() orelse return;
+    defer allocator.free(path);
     input_device_file = try std.fs.openFileAbsolute(
         path,
         .{ .mode = .read_only },
@@ -131,7 +136,7 @@ fn update() void {
         return;
 
     is_key_pressed = false;
-    @memcpy(last_keymap_buffer, keymap_buffer);
+    @memcpy(&last_keymap_buffer, &keymap_buffer);
 
     var event: c.input_event = undefined;
 
@@ -145,9 +150,7 @@ fn deinit() void {
         return;
 
     input_device_file.close();
-
-    allocator.free(keymap_buffer);
-    allocator.free(last_keymap_buffer);
+    initalised = false;
 }
 
 fn getKey(k: u8) bool {

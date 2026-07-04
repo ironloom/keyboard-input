@@ -5,10 +5,11 @@ const Inputter = @import("../Inputter.zig");
 
 pub const c = @import("c_osx.zig");
 
-var keymap_buffer: []bool = undefined;
-var last_keymap_buffer: []bool = undefined;
+const BUFFER_LEN: comptime_int = std.math.maxInt(u8);
+
+var keymap_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
+var last_keymap_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
 var IOHIDManager: c.IOHIDManagerRef = undefined;
-var alloc: Allocator = std.heap.smp_allocator;
 var initalised = false;
 var is_key_pressed = false;
 
@@ -27,7 +28,7 @@ fn callback(_: ?*anyopaque, _: c.IOReturn, _: ?*anyopaque, value: c.IOHIDValueRe
         is_key_pressed = true;
 }
 
-fn init(allocator: Allocator) !void {
+fn init(_: Allocator) !void {
     IOHIDManager = c.IOHIDManagerCreate(c.kCFAllocatorDefault, c.kIOHIDOptionsTypeNone);
     c.IOHIDManagerSetDeviceMatching(IOHIDManager, null);
 
@@ -36,15 +37,11 @@ fn init(allocator: Allocator) !void {
 
     _ = c.IOHIDManagerOpen(IOHIDManager, c.kIOHIDOptionsTypeNone);
 
-    keymap_buffer = try allocator.alloc(bool, std.math.maxInt(u8));
-    last_keymap_buffer = try allocator.alloc(bool, std.math.maxInt(u8));
-
-    for (keymap_buffer) |*slot| {
+    for (&keymap_buffer) |*slot| {
         slot.* = false;
     }
-    @memcpy(last_keymap_buffer, keymap_buffer);
+    @memcpy(&last_keymap_buffer, &keymap_buffer);
 
-    alloc = allocator;
     initalised = true;
 }
 
@@ -53,7 +50,7 @@ fn update() void {
         return;
 
     is_key_pressed = false;
-    @memcpy(last_keymap_buffer, keymap_buffer);
+    @memcpy(&last_keymap_buffer, &keymap_buffer);
     _ = c.CFRunLoopRunInMode(c.kCFRunLoopDefaultMode, 0.01, c.TRUE);
 }
 
@@ -62,9 +59,7 @@ fn deinit() void {
         return;
 
     c.CFRelease(IOHIDManager);
-
-    alloc.free(keymap_buffer);
-    alloc.free(last_keymap_buffer);
+    initalised = false;
 }
 
 fn getKey(k: u8) bool {
