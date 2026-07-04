@@ -3,21 +3,15 @@ const Allocator = @import("std").mem.Allocator;
 
 const Inputter = @import("../Inputter.zig");
 
-const BUFFER_LEN: comptime_int = std.math.maxInt(u8);
+const BUFFER_LEN: comptime_int = 256;
 pub const c = @import("c");
+
+extern "user32" fn GetKeyboardState(lpKeyState: [*]u8) callconv(.winapi) i32;
 
 var keymap_frame_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
 var keymap_cache_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
-var default: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
 
 var initalised = false;
-
-inline fn getKeyState(key_code: anytype) bool {
-    return switch (comptime @typeInfo(@TypeOf(key_code))) {
-        .int, .comptime_int => c.GetKeyState((@intCast(@max(@min(std.math.maxInt(c_short), key_code), 0)))) < 0,
-        else => return false,
-    };
-}
 
 fn init(_: Allocator) !void {
     initalised = true;
@@ -28,15 +22,12 @@ fn update() void {
         return;
 
     @memcpy(&keymap_cache_buffer, &keymap_frame_buffer);
-    @memcpy(&keymap_frame_buffer, &default);
 
-    for (0..BUFFER_LEN) |index| {
-        if (!getKeyState(std.ascii.toUpper(@intCast(@min(255, index))))) {
-            keymap_frame_buffer[index] = false;
-            continue;
-        }
+    var keys: [256]u8 = undefined;
+    _ = GetKeyboardState(&keys);
 
-        keymap_frame_buffer[index] = true;
+    for (0..BUFFER_LEN) |i| {
+        keymap_frame_buffer[i] = (keys[i] & 0x80) != 0;
     }
 }
 
@@ -46,35 +37,28 @@ fn deinit() void {
 
 fn getKey(k: u8) bool {
     if (!initalised) return false;
-
     return keymap_frame_buffer[std.ascii.toUpper(k)];
 }
 
 fn getKeyDown(k: u8) bool {
     if (!initalised) return false;
-
     const key = std.ascii.toUpper(k);
-
     if (keymap_cache_buffer[key]) return false;
     return getKey(k);
 }
 
 fn getKeyUp(k: u8) bool {
     if (!initalised) return false;
-
     const key = std.ascii.toUpper(k);
-
     if (!keymap_cache_buffer[key]) return false;
     return !getKey(k);
 }
 
 fn keyPressed() bool {
     if (!initalised) return false;
-
     for (keymap_frame_buffer) |key| {
         if (key) return true;
     }
-
     return false;
 }
 

@@ -11,7 +11,6 @@ var keymap_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
 var last_keymap_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
 var IOHIDManager: c.IOHIDManagerRef = undefined;
 var initalised = false;
-var is_key_pressed = false;
 
 fn callback(_: ?*anyopaque, _: c.IOReturn, _: ?*anyopaque, value: c.IOHIDValueRef) callconv(.c) void {
     const element: c.IOHIDElementRef = c.IOHIDValueGetElement(value);
@@ -21,11 +20,9 @@ fn callback(_: ?*anyopaque, _: c.IOReturn, _: ?*anyopaque, value: c.IOHIDValueRe
     if (usagePage != c.kHIDPage_KeyboardOrKeypad) return;
     const pressed = c.IOHIDValueGetIntegerValue(value);
 
-    const key = std.math.cast(u8, usage) orelse return;
+    if (usage >= BUFFER_LEN) return;
+    const key = @as(usize, @intCast(usage));
     keymap_buffer[key] = pressed != 0;
-
-    if (pressed != 0)
-        is_key_pressed = true;
 }
 
 fn init(_: Allocator) !void {
@@ -49,9 +46,8 @@ fn update() void {
     if (!initalised)
         return;
 
-    is_key_pressed = false;
     @memcpy(&last_keymap_buffer, &keymap_buffer);
-    _ = c.CFRunLoopRunInMode(c.kCFRunLoopDefaultMode, 0.01, c.TRUE);
+    _ = c.CFRunLoopRunInMode(c.kCFRunLoopDefaultMode, 0.0, c.TRUE);
 }
 
 fn deinit() void {
@@ -77,7 +73,13 @@ fn getKeyUp(k: u8) bool {
 }
 
 fn keyPressed() bool {
-    return is_key_pressed;
+    if (!initalised) return false;
+
+    for (keymap_buffer) |key| {
+        if (key) return true;
+    }
+
+    return false;
 }
 
 pub const inputter: Inputter = .{

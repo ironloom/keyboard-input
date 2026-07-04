@@ -3,47 +3,46 @@ const Allocator = @import("std").mem.Allocator;
 const Inputter = @import("../Inputter.zig");
 
 const c = @import("c");
-const event_path: []const u8 = "/dev/input";
+const event_path: [*:0]const u8 = "/dev/input";
 
-const BUFFER_LEN: comptime_int = std.math.maxInt(u8);
+const BUFFER_LEN: comptime_int = 768;
 
 var allocator: Allocator = std.heap.smp_allocator;
 var keymap_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
 var last_keymap_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
 var initalised = false;
-var is_key_pressed = false;
-var input_device_file: std.fs.File = undefined;
+var input_device_fd: c_int = -1;
 
 fn findKeyboard() !?[]u8 {
-    var dir = try std.fs.openDirAbsolute(event_path, .{ .iterate = true });
-    defer dir.close();
+    const dir = c.opendir(event_path);
+    if (dir == null) return null;
+    defer _ = c.closedir(dir);
 
-    std.log.debug("dir: {s}", .{event_path});
+    while (true) {
+        const entry = c.readdir(dir);
+        if (entry == null) break;
 
-    var iter = dir.iterate();
-    while (try iter.next()) |entry| {
-        if (entry.kind == .directory) continue;
+        const d_name = std.mem.span(@as([*:0]u8, @ptrCast(&entry.*.d_name)));
+        if (d_name.len == 0 or d_name[0] == '.') continue;
 
-        const path = try std.fs.path.join(allocator, &.{
-            event_path,
-            entry.name,
-        });
+        const path = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ event_path, d_name });
         defer allocator.free(path);
 
-        var file = try dir.openFile(entry.name, .{ .mode = .read_only });
-        defer file.close();
+        const fd = c.open(path.ptr, c.O_RDONLY | c.O_NONBLOCK);
+        if (fd < 0) continue;
+        defer _ = c.close(fd);
 
-        const file_descriptor = file.handle;
-        var name: [256]u8 = [_]u8{0} ** 256;
-        _ = c.ioctl(file_descriptor, c.EVIOCGNAME(8 * 256), &name);
+        var evbit: [1]u32 = [_]u32{0};
+        _ = c.ioctl(fd, c.EVIOCGBIT(0, @sizeOf(@TypeOf(evbit))), &evbit);
 
-        if (std.mem.containsAtLeast(
-            u8,
-            &name,
-            1,
-            "keyboard",
-        )) {
-            return try allocator.dupe(u8, path);
+        if ((evbit[0] & (1 << c.EV_KEY)) != 0) {
+            var keybit: [768 / 32]u32 = [_]u32{0} ** (768 / 32);
+            _ = c.ioctl(fd, c.EVIOCGBIT(c.EV_KEY, @sizeOf(@TypeOf(keybit))), &keybit);
+
+            const space_bit = c.KEY_SPACE;
+            if ((keybit[space_bit / 32] & (@as(u32, 1) << (space_bit % 32))) != 0) {
+                return try allocator.dupe(u8, path);
+            }
         }
     }
 
@@ -123,10 +122,7 @@ fn init(alloc: Allocator) !void {
 
     const path = try findKeyboard() orelse return;
     defer allocator.free(path);
-    input_device_file = try std.fs.openFileAbsolute(
-        path,
-        .{ .mode = .read_only },
-    );
+    input_device_fd = c.open(path.ptr, c.O_RDONLY | c.O_NONBLOCK);
 
     initalised = true;
 }
@@ -135,21 +131,27 @@ fn update() void {
     if (!initalised)
         return;
 
-    is_key_pressed = false;
     @memcpy(&last_keymap_buffer, &keymap_buffer);
 
     var event: c.input_event = undefined;
 
-    const bytes_read = c.read(input_device_file.handle, &event, @sizeOf(c.input_event));
-    _ = bytes_read;
-    if (event.type == c.EV_KEY) keymap_buffer[event.code] = event.value == 0;
+    while (true) {
+        const bytes_read = c.read(input_device_fd, &event, @sizeOf(c.input_event));
+        if (bytes_read < @sizeOf(c.input_event)) break;
+
+        if (event.type == c.EV_KEY) {
+            if (event.code < BUFFER_LEN) {
+                keymap_buffer[event.code] = event.value != 0;
+            }
+        }
+    }
 }
 
 fn deinit() void {
     if (!initalised)
         return;
 
-    input_device_file.close();
+    _ = c.close(input_device_fd);
     initalised = false;
 }
 
@@ -168,7 +170,11 @@ fn getKeyUp(k: u8) bool {
 }
 
 fn keyPressed() bool {
-    return is_key_pressed;
+    if (!initalised) return false;
+    for (keymap_buffer) |key| {
+        if (key) return true;
+    }
+    return false;
 }
 
 pub const inputter: Inputter = .{

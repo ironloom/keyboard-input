@@ -39,8 +39,8 @@ fn eatStdin() void {
     const builtin = @import("builtin");
     if (comptime builtin.os.tag == .windows) {
         const kernel32 = struct {
-            extern "kernel32" fn GetStdHandle(nStdHandle: i32) callconv(.C) ?*anyopaque;
-            extern "kernel32" fn FlushConsoleInputBuffer(hConsoleInput: ?*anyopaque) callconv(.C) i32;
+            extern "kernel32" fn GetStdHandle(nStdHandle: i32) callconv(.winapi) ?*anyopaque;
+            extern "kernel32" fn FlushConsoleInputBuffer(hConsoleInput: ?*anyopaque) callconv(.winapi) i32;
         };
         _ = kernel32.FlushConsoleInputBuffer(kernel32.GetStdHandle(-10));
         return;
