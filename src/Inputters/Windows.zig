@@ -4,9 +4,7 @@ const Allocator = @import("std").mem.Allocator;
 const Inputter = @import("../Inputter.zig");
 
 const BUFFER_LEN: comptime_int = std.math.maxInt(u8);
-pub const c = @cImport({
-    @cInclude("windows.h");
-});
+pub const c = @import("c");
 
 var keymap_frame_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
 var keymap_cache_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;

@@ -3,10 +3,7 @@ const Allocator = @import("std").mem.Allocator;
 
 const Inputter = @import("../Inputter.zig");
 
-pub const c = @cImport({
-    @cInclude("IOKit/hid/IOHIDManager.h");
-    @cInclude("CoreFoundation/CoreFoundation.h");
-});
+pub const c = @import("c_osx.zig");
 
 var keymap_buffer: []bool = undefined;
 var last_keymap_buffer: []bool = undefined;

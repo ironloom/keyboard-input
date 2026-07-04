@@ -8,7 +8,7 @@
 > This library currently only supports ASCII characters.
 
 > [!IMPORTANT]
-> This library targets zig version 0.15.1, and will get updated to future versions.
+> This library targets zig version 0.16.0, and will get updated to future versions.
 
 ## Installing the Library
 

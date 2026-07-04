@@ -35,7 +35,46 @@ pub fn build(b: *std.Build) !void {
         else => {},
     };
 
-    try b.modules.put(b.dupe("keyboard_input"), lib_mod);
+    var opt_c_header: ?[]const u8 = null;
+    switch (target.result.os.tag) {
+        .windows => {
+            opt_c_header = "#include <windows.h>\n";
+        },
+        .linux => {
+            opt_c_header =
+                \\#include <stdio.h>
+                \\#include <stdlib.h>
+                \\#include <fcntl.h>
+                \\#include <unistd.h>
+                \\#include <string.h>
+                \\#include <dirent.h>
+                \\#include <linux/input.h>
+                \\
+            ;
+        },
+        else => {},
+    }
+
+    if (opt_c_header) |c_header| {
+        const wf = b.addWriteFiles();
+        const c_h = wf.add("c.h", c_header);
+        const translate_c = b.addTranslateC(.{
+            .root_source_file = c_h,
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        });
+
+        if (b.lazyDependency("system_sdk", .{})) |_| switch (target.result.os.tag) {
+            .windows => {},
+            .linux => {},
+            else => {},
+        };
+
+        lib_mod.addImport("c", translate_c.createModule());
+    }
+
+    try b.modules.put(b.allocator, b.dupe("keyboard_input"), lib_mod);
 
     const lib = b.addLibrary(.{
         .linkage = .dynamic,

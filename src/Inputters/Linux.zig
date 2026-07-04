@@ -2,15 +2,7 @@ const std = @import("std");
 const Allocator = @import("std").mem.Allocator;
 const Inputter = @import("../Inputter.zig");
 
-const c = @cImport({
-    @cInclude("stdio.h");
-    @cInclude("stdlib.h");
-    @cInclude("fcntl.h");
-    @cInclude("unistd.h");
-    @cInclude("string.h");
-    @cInclude("dirent.h");
-    @cInclude("linux/input.h");
-});
+const c = @import("c");
 const event_path: []const u8 = "/dev/input";
 
 var allocator: Allocator = std.heap.smp_allocator;
