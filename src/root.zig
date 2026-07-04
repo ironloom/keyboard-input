@@ -35,9 +35,29 @@ pub export fn initSafe() void {
     };
 }
 
+fn eatStdin() void {
+    const builtin = @import("builtin");
+    if (comptime builtin.os.tag == .windows) {
+        const kernel32 = struct {
+            extern "kernel32" fn GetStdHandle(nStdHandle: i32) callconv(.C) ?*anyopaque;
+            extern "kernel32" fn FlushConsoleInputBuffer(hConsoleInput: ?*anyopaque) callconv(.C) i32;
+        };
+        _ = kernel32.FlushConsoleInputBuffer(kernel32.GetStdHandle(-10));
+        return;
+    }
+
+    const posix = struct {
+        extern "c" fn tcflush(fd: i32, action: i32) i32;
+    };
+    const TCIFLUSH: i32 = if (comptime builtin.os.tag == .macos) 1 else 0;
+    _ = posix.tcflush(std.posix.STDIN_FILENO, TCIFLUSH);
+}
+
 /// Call every frame to update the keyboard state.
 pub export fn update() void {
     if (!initalised) return;
+
+    eatStdin();
 
     const inp = inputter orelse return;
     inp.update();
@@ -45,6 +65,8 @@ pub export fn update() void {
 
 pub export fn deinit() void {
     if (!initalised) return;
+
+    eatStdin();
 
     const inp = inputter orelse return;
     inp.deinit();
