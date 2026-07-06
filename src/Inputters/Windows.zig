@@ -6,7 +6,7 @@ const Inputter = @import("../Inputter.zig");
 const BUFFER_LEN: comptime_int = 256;
 pub const c = @import("c");
 
-extern "user32" fn GetKeyboardState(lpKeyState: [*]u8) callconv(.winapi) i32;
+extern "user32" fn GetAsyncKeyState(vKey: i32) callconv(.winapi) i16;
 
 var keymap_frame_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
 var keymap_cache_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
@@ -23,11 +23,8 @@ fn update() void {
 
     @memcpy(&keymap_cache_buffer, &keymap_frame_buffer);
 
-    var keys: [256]u8 = undefined;
-    _ = GetKeyboardState(&keys);
-
     for (0..BUFFER_LEN) |i| {
-        keymap_frame_buffer[i] = (keys[i] & 0x80) != 0;
+        keymap_frame_buffer[i] = GetAsyncKeyState(@intCast(i)) < 0;
     }
 }
 
