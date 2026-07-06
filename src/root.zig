@@ -18,7 +18,10 @@ var alloc: ?Allocator = null;
 
 pub fn init(allocator: Allocator) !void {
     const inp = inputter orelse {
-        std.log.err("keyboard-input does not support current OS (supported: MacOS, Linux, Windows)", .{});
+        std.log.err(
+            "keyboard-input does not support current OS (supported: MacOS, Linux, Windows)",
+            .{},
+        );
         return;
     };
 
@@ -100,7 +103,7 @@ pub export fn getKeyUp(key: u8) bool {
 ///
 /// **NOTE: THIS MAY NOT WORK CORRECTLY ON SOME OPERATING SYSTEMS.**
 ///
-/// *Currently works on: Windows*
+/// *Currently works on: Windows, MacOS*
 pub export fn keyPressed() bool {
     if (!initalised) return false;
 

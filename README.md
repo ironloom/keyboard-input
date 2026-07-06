@@ -39,8 +39,10 @@ const std = @import("std");
 const kb_input = @import("kb_input");
 
 pub fn main() !void {
-    kb_input.initSafe();
-    // For custom allocators: try kb_input.init(allocator);
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+
+    try kb_input.init(gpa.allocator());
     defer kb_input.deinit();
 
     while (!kb_input.getKeyDown('q')) {
@@ -59,7 +61,7 @@ pub fn main() !void {
 ## API Reference
 
 - `init(allocator: Allocator) !void`: Initializes the keyboard input system.
-- `initSafe() void`: Wraps `init()` with `std.heap.smp_allocator` and aborts on setup failure.
+- `initSafe() void`: Wraps `init()` with `std.heap.smp_allocator` and aborts on setup failure. **Note: This method is not meant to be called unless the package is being used through the C ABI.**
 - `deinit() void`: Cleans up resources.
 - `update() void`: Refreshes the internal keyboard state. Must be called once per frame.
 - `getKey(key: u8) bool`: Returns `true` if the key is held down.

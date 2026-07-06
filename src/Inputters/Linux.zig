@@ -107,7 +107,7 @@ fn convertAsciiToLinuxMagicCode(ascii: u8) u8 {
         42 => 55, // '*' (keypad)
         43 => 78, // '+' (keypad)
         40 => 179, // '(' (keypad)
-        41 => 180, // ')' (keypa
+        41 => 180, // ')' (keypad)
         else => 0, // Unmapped
     };
 }
