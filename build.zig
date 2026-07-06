@@ -65,12 +65,6 @@ pub fn build(b: *std.Build) !void {
             .link_libc = true,
         });
 
-        if (b.lazyDependency("system_sdk", .{})) |_| switch (target.result.os.tag) {
-            .windows => {},
-            .linux => {},
-            else => {},
-        };
-
         lib_mod.addImport("c", translate_c.createModule());
     }
 
@@ -104,7 +98,7 @@ pub fn build(b: *std.Build) !void {
         run_cmd.addArgs(args);
     }
 
-    const run_step = b.step("run", "Run the app");
+    const run_step = b.step("run", "Run the demo");
     run_step.dependOn(&run_cmd.step);
 
     const lib_unit_tests = b.addTest(.{ .root_module = lib_mod });

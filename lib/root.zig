@@ -13,7 +13,7 @@ const inputter: ?Inputter = switch (@import("builtin").os.tag) {
     .linux => Linux_Inputter,
     else => null,
 };
-var initalised = false;
+var initialised = false;
 var alloc: ?Allocator = null;
 
 pub fn init(allocator: Allocator) !void {
@@ -28,7 +28,7 @@ pub fn init(allocator: Allocator) !void {
     alloc = allocator;
     try inp.init(alloc.?);
 
-    initalised = true;
+    initialised = true;
 }
 
 /// This calls `init()` with the `std.heap.smp_allocator`. Handles setup error by aborting the process.
@@ -58,7 +58,7 @@ fn eatStdin() void {
 
 /// Call every frame to update the keyboard state.
 pub export fn update() void {
-    if (!initalised) return;
+    if (!initialised) return;
 
     eatStdin();
 
@@ -67,7 +67,7 @@ pub export fn update() void {
 }
 
 pub export fn deinit() void {
-    if (!initalised) return;
+    if (!initialised) return;
 
     eatStdin();
 
@@ -77,7 +77,7 @@ pub export fn deinit() void {
 
 /// Returns the current keystate, `true` if the key is pressed, `false` if not.
 pub export fn getKey(key: u8) bool {
-    if (!initalised) return false;
+    if (!initialised) return false;
 
     const inp = inputter orelse return false;
     return inp.getKey(key);
@@ -85,7 +85,7 @@ pub export fn getKey(key: u8) bool {
 
 /// Returns whether or not the key has been pressed for the first time.
 pub export fn getKeyDown(key: u8) bool {
-    if (!initalised) return false;
+    if (!initialised) return false;
 
     const inp = inputter orelse return false;
     return inp.getKeyDown(key);
@@ -93,7 +93,7 @@ pub export fn getKeyDown(key: u8) bool {
 
 /// Returns true when the key is released.
 pub export fn getKeyUp(key: u8) bool {
-    if (!initalised) return false;
+    if (!initialised) return false;
 
     const inp = inputter orelse return false;
     return inp.getKeyUp(key);
@@ -105,7 +105,7 @@ pub export fn getKeyUp(key: u8) bool {
 ///
 /// *Currently works on: Windows, MacOS*
 pub export fn keyPressed() bool {
-    if (!initalised) return false;
+    if (!initialised) return false;
 
     const inp = inputter orelse return false;
     return inp.keyPressed();
