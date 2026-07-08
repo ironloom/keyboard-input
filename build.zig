@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     const lib_mod = b.createModule(.{
-        .root_source_file = b.path("src/root.zig"),
+        .root_source_file = b.path("lib/root.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
@@ -79,7 +79,7 @@ pub fn build(b: *std.Build) !void {
 
     // We will also create a module for our other entry point, 'main.zig'.
     const exe_mod = b.createModule(.{
-        .root_source_file = b.path("src/main.zig"),
+        .root_source_file = b.path("examples/hello/main.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,

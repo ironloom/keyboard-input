@@ -7,13 +7,12 @@ const event_path: [*:0]const u8 = "/dev/input";
 
 const BUFFER_LEN: comptime_int = 768;
 
-var allocator: Allocator = std.heap.smp_allocator;
 var keymap_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
 var last_keymap_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
 var initalised = false;
 var input_device_fd: c_int = -1;
 
-fn findKeyboard() !?[]u8 {
+fn findKeyboard(allocator: Allocator) !?[]u8 {
     const dir = c.opendir(event_path);
     if (dir == null) return null;
     defer _ = c.closedir(dir);
@@ -112,15 +111,13 @@ fn convertAsciiToLinuxMagicCode(ascii: u8) u8 {
     };
 }
 
-fn init(alloc: Allocator) !void {
-    allocator = alloc;
-
+fn init(allocator: Allocator) !void {
     for (&keymap_buffer) |*slot| {
         slot.* = false;
     }
     @memcpy(&last_keymap_buffer, &keymap_buffer);
 
-    const path = try findKeyboard() orelse return;
+    const path = try findKeyboard(allocator) orelse return;
     defer allocator.free(path);
     input_device_fd = c.open(path.ptr, c.O_RDONLY | c.O_NONBLOCK);
 
