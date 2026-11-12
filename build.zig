@@ -5,7 +5,7 @@ pub fn build(builder: *std.Build) !void {
     const optimize = builder.standardOptimizeOption(.{});
 
     const library_module = builder.createModule(.{
-        .root_source_file = builder.path("src/root.zig"),
+        .root_source_file = builder.path("lib/root.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
@@ -25,7 +25,7 @@ pub fn build(builder: *std.Build) !void {
     builder.installArtifact(library);
 
     const executable_module = builder.createModule(.{
-        .root_source_file = builder.path("src/main.zig"),
+        .root_source_file = builder.path("examples/hello/main.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
@@ -42,7 +42,7 @@ pub fn build(builder: *std.Build) !void {
     run_command.step.dependOn(builder.getInstallStep());
     run_command.addPassthruArgs();
 
-    const run_step = builder.step("run", "Run the app");
+    const run_step = builder.step("run", "Run the demo");
     run_step.dependOn(&run_command.step);
 
     const library_unit_tests = builder.addTest(.{ .root_module = library_module });
