@@ -3,23 +3,19 @@
 //! is to delete this file and start with root.zig instead.
 
 const std = @import("std");
-const Allocator = @import("std").mem.Allocator;
-const kb_input = @import("keyboard_input");
+const keyboard_input = @import("keyboard_input");
 
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
     std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
+    try keyboard_input.init(std.heap.smp_allocator);
+    defer keyboard_input.deinit();
 
-    try kb_input.init(std.heap.smp_allocator);
-    defer kb_input.deinit();
+    while (!keyboard_input.getKeyDown('q')) {
+        keyboard_input.update();
 
-    while (!kb_input.getKeyDown('q')) {
-        kb_input.update();
-
-        if (kb_input.getKey('w')) std.log.debug("w", .{});
+        if (keyboard_input.getKey('w')) {
+            std.log.debug("w", .{});
+        }
     }
 }

@@ -19,7 +19,7 @@ pub const NULL: ?*anyopaque = null;
 
 pub extern "C" fn IOHIDManagerCreate(allocator: CFAllocatorRef, options: IOOptionBits) IOHIDManagerRef;
 pub extern "C" fn IOHIDManagerSetDeviceMatching(manager: IOHIDManagerRef, matching: ?*anyopaque) void;
-pub extern "C" fn IOHIDManagerRegisterInputValueCallback(manager: IOHIDManagerRef, callback: *const fn(?*anyopaque, IOReturn, ?*anyopaque, IOHIDValueRef) callconv(.c) void, context: ?*anyopaque) void;
+pub extern "C" fn IOHIDManagerRegisterInputValueCallback(manager: IOHIDManagerRef, callback: *const fn (?*anyopaque, IOReturn, ?*anyopaque, IOHIDValueRef) callconv(.c) void, context: ?*anyopaque) void;
 pub extern "C" fn IOHIDManagerScheduleWithRunLoop(manager: IOHIDManagerRef, runLoop: CFRunLoopRef, runLoopMode: CFStringRef) void;
 pub extern "C" fn IOHIDManagerOpen(manager: IOHIDManagerRef, options: IOOptionBits) IOReturn;
 pub extern "C" fn IOHIDValueGetElement(value: IOHIDValueRef) IOHIDElementRef;
@@ -27,7 +27,7 @@ pub extern "C" fn IOHIDElementGetUsagePage(element: IOHIDElementRef) u32;
 pub extern "C" fn IOHIDElementGetUsage(element: IOHIDElementRef) u32;
 pub extern "C" fn IOHIDValueGetIntegerValue(value: IOHIDValueRef) CFIndex;
 pub extern "C" fn CFRunLoopGetCurrent() CFRunLoopRef;
-pub extern "C" fn CFRunLoopRunInMode(mode: CFStringRef, seconds: CFTimeInterval, returnAfterSourceHandled: Boolean) i32;
-pub extern "C" fn CFRelease(arg: ?*anyopaque) void;
+pub extern "C" fn CFRunLoopRunInMode(mode: CFStringRef, timeout_seconds: CFTimeInterval, returnAfterSourceHandled: Boolean) i32;
+pub extern "C" fn CFRelease(type_ref: ?*anyopaque) void;
 
 pub extern "C" const kCFRunLoopDefaultMode: CFStringRef;

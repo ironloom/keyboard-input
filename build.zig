@@ -1,119 +1,93 @@
 const std = @import("std");
 
-pub fn build(b: *std.Build) !void {
-    const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
+pub fn build(builder: *std.Build) !void {
+    const target = builder.standardTargetOptions(.{});
+    const optimize = builder.standardOptimizeOption(.{});
 
-    const lib_mod = b.createModule(.{
-        .root_source_file = b.path("src/root.zig"),
+    const library_module = builder.createModule(.{
+        .root_source_file = builder.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
     });
 
-    if (b.lazyDependency("system_sdk", .{})) |system_sdk| switch (target.result.os.tag) {
-        .windows => {
-            if (target.result.cpu.arch.isX86() and (target.result.abi.isGnu() or target.result.abi.isMusl())) {
-                lib_mod.addLibraryPath(system_sdk.path("windows/lib/x86_64-windows-gnu"));
-            }
-        },
-        .macos => {
-            lib_mod.addLibraryPath(system_sdk.path("macos12/usr/lib"));
-            lib_mod.addFrameworkPath(system_sdk.path("macos12/System/Library/Frameworks"));
-
-            lib_mod.linkFramework("ApplicationServices", .{});
-            lib_mod.linkFramework("IOKit", .{});
-            lib_mod.linkFramework("CoreFoundation", .{});
-        },
-        .linux => {
-            if (target.result.cpu.arch.isX86()) {
-                lib_mod.addLibraryPath(system_sdk.path("linux/lib/x86_64-linux-gnu"));
-            } else if (target.result.cpu.arch == .aarch64) {
-                lib_mod.addLibraryPath(system_sdk.path("linux/lib/aarch64-linux-gnu"));
-            }
-        },
-        else => {},
-    };
-
-    var opt_c_header: ?[]const u8 = null;
-    switch (target.result.os.tag) {
-        .windows => {
-            opt_c_header = "#include <windows.h>\n";
-        },
-        .linux => {
-            opt_c_header =
-                \\#include <stdio.h>
-                \\#include <stdlib.h>
-                \\#include <fcntl.h>
-                \\#include <unistd.h>
-                \\#include <string.h>
-                \\#include <dirent.h>
-                \\#include <linux/input.h>
-                \\
-            ;
-        },
-        else => {},
+    if (builder.lazyDependency("system_sdk", .{})) |system_sdk| {
+        configureSystemSdk(library_module, system_sdk, target);
     }
 
-    if (opt_c_header) |c_header| {
-        const wf = b.addWriteFiles();
-        const c_h = wf.add("c.h", c_header);
-        const translate_c = b.addTranslateC(.{
-            .root_source_file = c_h,
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        });
+    try builder.modules.put(builder.allocator, builder.dupe("keyboard_input"), library_module);
 
-        if (b.lazyDependency("system_sdk", .{})) |_| switch (target.result.os.tag) {
-            .windows => {},
-            .linux => {},
-            else => {},
-        };
-
-        lib_mod.addImport("c", translate_c.createModule());
-    }
-
-    try b.modules.put(b.allocator, b.dupe("keyboard_input"), lib_mod);
-
-    const lib = b.addLibrary(.{
+    const library = builder.addLibrary(.{
         .linkage = .dynamic,
         .name = "keyboard_input",
-        .root_module = lib_mod,
+        .root_module = library_module,
     });
-    b.installArtifact(lib);
+    builder.installArtifact(library);
 
-    // We will also create a module for our other entry point, 'main.zig'.
-    const exe_mod = b.createModule(.{
-        .root_source_file = b.path("src/main.zig"),
+    const executable_module = builder.createModule(.{
+        .root_source_file = builder.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
     });
-    exe_mod.addImport("keyboard_input", lib_mod);
+    executable_module.addImport("keyboard_input", library_module);
 
-    const exe = b.addExecutable(.{
+    const executable = builder.addExecutable(.{
         .name = "keyboard_input",
-        .root_module = exe_mod,
+        .root_module = executable_module,
     });
-    b.installArtifact(exe);
+    builder.installArtifact(executable);
 
-    const run_cmd = b.addRunArtifact(exe);
-    run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
+    const run_command = builder.addRunArtifact(executable);
+    run_command.step.dependOn(builder.getInstallStep());
+    run_command.addPassthruArgs();
+
+    const run_step = builder.step("run", "Run the app");
+    run_step.dependOn(&run_command.step);
+
+    const library_unit_tests = builder.addTest(.{ .root_module = library_module });
+    const run_library_unit_tests = builder.addRunArtifact(library_unit_tests);
+
+    const executable_unit_tests = builder.addTest(.{ .root_module = executable_module });
+    const run_executable_unit_tests = builder.addRunArtifact(executable_unit_tests);
+
+    const test_step = builder.step("test", "Run unit tests");
+    test_step.dependOn(&run_library_unit_tests.step);
+    test_step.dependOn(&run_executable_unit_tests.step);
+}
+
+fn configureSystemSdk(
+    library_module: *std.Build.Module,
+    system_sdk: *std.Build.Dependency,
+    target: std.Build.ResolvedTarget,
+) void {
+    const target_operating_system = target.result.os.tag;
+    if (target_operating_system == .macos) {
+        library_module.addLibraryPath(system_sdk.path("macos12/usr/lib"));
+        library_module.addFrameworkPath(system_sdk.path("macos12/System/Library/Frameworks"));
+
+        library_module.linkFramework("ApplicationServices", .{});
+        library_module.linkFramework("IOKit", .{});
+        library_module.linkFramework("CoreFoundation", .{});
+        return;
     }
 
-    const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_cmd.step);
+    if (target_operating_system == .windows) {
+        const is_x86 = target.result.cpu.arch.isX86();
+        const is_gnu_or_musl = target.result.abi.isGnu() or target.result.abi.isMusl();
+        if (is_x86 and is_gnu_or_musl) {
+            library_module.addLibraryPath(system_sdk.path("windows/lib/x86_64-windows-gnu"));
+        }
+        return;
+    }
 
-    const lib_unit_tests = b.addTest(.{ .root_module = lib_mod });
-    const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
-
-    const exe_unit_tests = b.addTest(.{ .root_module = exe_mod });
-    const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
-
-    const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_lib_unit_tests.step);
-    test_step.dependOn(&run_exe_unit_tests.step);
+    if (target_operating_system == .linux) {
+        const cpu_architecture = target.result.cpu.arch;
+        if (cpu_architecture.isX86()) {
+            library_module.addLibraryPath(system_sdk.path("linux/lib/x86_64-linux-gnu"));
+        } else if (cpu_architecture == .aarch64) {
+            library_module.addLibraryPath(system_sdk.path("linux/lib/aarch64-linux-gnu"));
+        }
+        return;
+    }
 }

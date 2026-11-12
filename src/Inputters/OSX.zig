@@ -1,82 +1,80 @@
 const std = @import("std");
-const Allocator = @import("std").mem.Allocator;
+const Allocator = std.mem.Allocator;
 
 const Inputter = @import("../Inputter.zig");
 
-pub const c = @import("c_osx.zig");
+pub const c_bindings = @import("c_osx.zig");
 
-const BUFFER_LEN: comptime_int = std.math.maxInt(u8);
+const KEYMAP_BUFFER_LENGTH: comptime_int = std.math.maxInt(u8);
 
-var keymap_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
-var last_keymap_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
-var IOHIDManager: c.IOHIDManagerRef = undefined;
-var initalised = false;
+var keymap_buffer: [KEYMAP_BUFFER_LENGTH]bool = @splat(false);
+var last_keymap_buffer: [KEYMAP_BUFFER_LENGTH]bool = @splat(false);
+var hid_manager: c_bindings.IOHIDManagerRef = undefined;
+var is_initialized = false;
 
-fn callback(_: ?*anyopaque, _: c.IOReturn, _: ?*anyopaque, value: c.IOHIDValueRef) callconv(.c) void {
-    const element: c.IOHIDElementRef = c.IOHIDValueGetElement(value);
-    const usagePage = c.IOHIDElementGetUsagePage(element);
-    const usage = c.IOHIDElementGetUsage(element);
+fn callback(_: ?*anyopaque, _: c_bindings.IOReturn, _: ?*anyopaque, value: c_bindings.IOHIDValueRef) callconv(.c) void {
+    const element: c_bindings.IOHIDElementRef = c_bindings.IOHIDValueGetElement(value);
+    const usage_page = c_bindings.IOHIDElementGetUsagePage(element);
+    const usage = c_bindings.IOHIDElementGetUsage(element);
 
-    if (usagePage != c.kHIDPage_KeyboardOrKeypad) return;
-    const pressed = c.IOHIDValueGetIntegerValue(value);
+    if (usage_page != c_bindings.kHIDPage_KeyboardOrKeypad) return;
+    const pressed_value = c_bindings.IOHIDValueGetIntegerValue(value);
 
-    if (usage >= BUFFER_LEN) return;
-    const key = @as(usize, @intCast(usage));
-    keymap_buffer[key] = pressed != 0;
+    if (usage >= KEYMAP_BUFFER_LENGTH) return;
+    const key_index = @as(usize, @intCast(usage));
+    keymap_buffer[key_index] = pressed_value != 0;
 }
 
 fn init(_: Allocator) !void {
-    IOHIDManager = c.IOHIDManagerCreate(c.kCFAllocatorDefault, c.kIOHIDOptionsTypeNone);
-    c.IOHIDManagerSetDeviceMatching(IOHIDManager, null);
+    hid_manager = c_bindings.IOHIDManagerCreate(c_bindings.kCFAllocatorDefault, c_bindings.kIOHIDOptionsTypeNone);
+    c_bindings.IOHIDManagerSetDeviceMatching(hid_manager, null);
 
-    c.IOHIDManagerRegisterInputValueCallback(IOHIDManager, callback, c.NULL);
-    c.IOHIDManagerScheduleWithRunLoop(IOHIDManager, c.CFRunLoopGetCurrent(), c.kCFRunLoopDefaultMode);
+    c_bindings.IOHIDManagerRegisterInputValueCallback(hid_manager, callback, c_bindings.NULL);
+    c_bindings.IOHIDManagerScheduleWithRunLoop(hid_manager, c_bindings.CFRunLoopGetCurrent(), c_bindings.kCFRunLoopDefaultMode);
 
-    _ = c.IOHIDManagerOpen(IOHIDManager, c.kIOHIDOptionsTypeNone);
+    _ = c_bindings.IOHIDManagerOpen(hid_manager, c_bindings.kIOHIDOptionsTypeNone);
 
-    for (&keymap_buffer) |*slot| {
-        slot.* = false;
-    }
+    @memset(&keymap_buffer, false);
     @memcpy(&last_keymap_buffer, &keymap_buffer);
 
-    initalised = true;
+    is_initialized = true;
 }
 
 fn update() void {
-    if (!initalised)
+    if (!is_initialized)
         return;
 
     @memcpy(&last_keymap_buffer, &keymap_buffer);
-    _ = c.CFRunLoopRunInMode(c.kCFRunLoopDefaultMode, 0.0, c.TRUE);
+    _ = c_bindings.CFRunLoopRunInMode(c_bindings.kCFRunLoopDefaultMode, 0.0, c_bindings.TRUE);
 }
 
 fn deinit() void {
-    if (!initalised)
+    if (!is_initialized)
         return;
 
-    c.CFRelease(IOHIDManager);
-    initalised = false;
+    c_bindings.CFRelease(hid_manager);
+    is_initialized = false;
 }
 
-fn getKey(k: u8) bool {
-    return keymap_buffer[convertAsciiToAppleMagicCode(k)];
+fn getKey(key: u8) bool {
+    return keymap_buffer[convertAsciiToAppleMagicCode(key)];
 }
 
-fn getKeyDown(k: u8) bool {
-    if (last_keymap_buffer[convertAsciiToAppleMagicCode(k)]) return false;
-    return getKey(k);
+fn getKeyDown(key: u8) bool {
+    if (last_keymap_buffer[convertAsciiToAppleMagicCode(key)]) return false;
+    return getKey(key);
 }
 
-fn getKeyUp(k: u8) bool {
-    if (!last_keymap_buffer[convertAsciiToAppleMagicCode(k)]) return false;
-    return !getKey(k);
+fn getKeyUp(key: u8) bool {
+    if (!last_keymap_buffer[convertAsciiToAppleMagicCode(key)]) return false;
+    return !getKey(key);
 }
 
 fn keyPressed() bool {
-    if (!initalised) return false;
+    if (!is_initialized) return false;
 
-    for (keymap_buffer) |key| {
-        if (key) return true;
+    for (keymap_buffer) |is_pressed| {
+        if (is_pressed) return true;
     }
 
     return false;

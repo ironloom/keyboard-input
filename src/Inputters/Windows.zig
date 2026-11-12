@@ -1,63 +1,63 @@
 const std = @import("std");
-const Allocator = @import("std").mem.Allocator;
+const Allocator = std.mem.Allocator;
 
 const Inputter = @import("../Inputter.zig");
 
-const BUFFER_LEN: comptime_int = 256;
-pub const c = @import("c");
+const KEYMAP_BUFFER_LENGTH: comptime_int = 256;
 
-extern "user32" fn GetKeyboardState(lpKeyState: [*]u8) callconv(.winapi) i32;
+extern "user32" fn GetKeyboardState(key_state: [*]u8) callconv(.winapi) i32;
 
-var keymap_frame_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
-var keymap_cache_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
+var keymap_frame_buffer: [KEYMAP_BUFFER_LENGTH]bool = @splat(false);
+var keymap_cache_buffer: [KEYMAP_BUFFER_LENGTH]bool = @splat(false);
 
-var initalised = false;
+var is_initialized = false;
 
 fn init(_: Allocator) !void {
-    initalised = true;
+    is_initialized = true;
 }
 
 fn update() void {
-    if (!initalised)
+    if (!is_initialized)
         return;
 
     @memcpy(&keymap_cache_buffer, &keymap_frame_buffer);
 
-    var keys: [256]u8 = undefined;
+    var keys: [KEYMAP_BUFFER_LENGTH]u8 = undefined;
     _ = GetKeyboardState(&keys);
 
-    for (0..BUFFER_LEN) |i| {
-        keymap_frame_buffer[i] = (keys[i] & 0x80) != 0;
+    for (0..KEYMAP_BUFFER_LENGTH) |key_index| {
+        keymap_frame_buffer[key_index] = (keys[key_index] & 0x80) != 0;
     }
 }
 
 fn deinit() void {
-    initalised = false;
+    is_initialized = false;
 }
 
-fn getKey(k: u8) bool {
-    if (!initalised) return false;
-    return keymap_frame_buffer[std.ascii.toUpper(k)];
+fn getKey(key: u8) bool {
+    if (!is_initialized) return false;
+    const uppercase_key = std.ascii.toUpper(key);
+    return keymap_frame_buffer[uppercase_key];
 }
 
-fn getKeyDown(k: u8) bool {
-    if (!initalised) return false;
-    const key = std.ascii.toUpper(k);
-    if (keymap_cache_buffer[key]) return false;
-    return getKey(k);
+fn getKeyDown(key: u8) bool {
+    if (!is_initialized) return false;
+    const uppercase_key = std.ascii.toUpper(key);
+    if (keymap_cache_buffer[uppercase_key]) return false;
+    return getKey(key);
 }
 
-fn getKeyUp(k: u8) bool {
-    if (!initalised) return false;
-    const key = std.ascii.toUpper(k);
-    if (!keymap_cache_buffer[key]) return false;
-    return !getKey(k);
+fn getKeyUp(key: u8) bool {
+    if (!is_initialized) return false;
+    const uppercase_key = std.ascii.toUpper(key);
+    if (!keymap_cache_buffer[uppercase_key]) return false;
+    return !getKey(key);
 }
 
 fn keyPressed() bool {
-    if (!initalised) return false;
-    for (keymap_frame_buffer) |key| {
-        if (key) return true;
+    if (!is_initialized) return false;
+    for (keymap_frame_buffer) |is_pressed| {
+        if (is_pressed) return true;
     }
     return false;
 }

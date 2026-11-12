@@ -1,49 +1,67 @@
 const std = @import("std");
-const Allocator = @import("std").mem.Allocator;
+const Allocator = std.mem.Allocator;
 const Inputter = @import("../Inputter.zig");
 
-const c = @import("c");
+const c_bindings = @import("c_linux.zig");
 const event_path: [*:0]const u8 = "/dev/input";
 
-const BUFFER_LEN: comptime_int = 768;
+const KEYMAP_BUFFER_LENGTH: comptime_int = 768;
+const KEYBIT_WORD_COUNT: comptime_int = KEYMAP_BUFFER_LENGTH / 32;
+const DEVICE_PATH_BUFFER_LENGTH: comptime_int = 280;
 
-var allocator: Allocator = std.heap.smp_allocator;
-var keymap_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
-var last_keymap_buffer: [BUFFER_LEN]bool = [_]bool{false} ** BUFFER_LEN;
-var initalised = false;
-var input_device_fd: c_int = -1;
+var keymap_buffer: [KEYMAP_BUFFER_LENGTH]bool = @splat(false);
+var last_keymap_buffer: [KEYMAP_BUFFER_LENGTH]bool = @splat(false);
+var is_initialized: bool = false;
+var input_device_descriptor: c_int = -1;
 
-fn findKeyboard() !?[]u8 {
-    const dir = c.opendir(event_path);
-    if (dir == null) return null;
-    defer _ = c.closedir(dir);
+fn isKeyboardDevice(file_descriptor: c_int) bool {
+    var event_bits: [1]u32 = @splat(0);
+    _ = c_bindings.ioctl(file_descriptor, c_bindings.EVIOCGBIT(0, @sizeOf(@TypeOf(event_bits))), &event_bits);
 
-    while (true) {
-        const entry = c.readdir(dir);
-        if (entry == null) break;
+    const has_key_events = (event_bits[0] & (@as(u32, 1) << @as(u5, @intCast(c_bindings.EV_KEY)))) != 0;
+    if (!has_key_events) return false;
 
-        const d_name = std.mem.span(@as([*:0]u8, @ptrCast(&entry.*.d_name)));
-        if (d_name.len == 0 or d_name[0] == '.') continue;
+    var key_bits: [KEYBIT_WORD_COUNT]u32 = @splat(0);
+    _ = c_bindings.ioctl(file_descriptor, c_bindings.EVIOCGBIT(c_bindings.EV_KEY, @sizeOf(@TypeOf(key_bits))), &key_bits);
 
-        const path = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ event_path, d_name });
-        defer allocator.free(path);
+    const space_bit = c_bindings.KEY_SPACE;
+    const space_word_index = space_bit / 32;
+    const space_bit_offset: u5 = @intCast(space_bit % 32);
+    const space_mask = @as(u32, 1) << space_bit_offset;
 
-        const fd = c.open(path.ptr, c.O_RDONLY | c.O_NONBLOCK);
-        if (fd < 0) continue;
-        defer _ = c.close(fd);
+    return (key_bits[space_word_index] & space_mask) != 0;
+}
 
-        var evbit: [1]u32 = [_]u32{0};
-        _ = c.ioctl(fd, c.EVIOCGBIT(0, @sizeOf(@TypeOf(evbit))), &evbit);
+fn buildDevicePath(entry_name: []const u8, path_buffer: *[DEVICE_PATH_BUFFER_LENGTH]u8) ?[*:0]const u8 {
+    const prefix = "/dev/input/";
+    const total_length = prefix.len + entry_name.len;
+    if (total_length >= path_buffer.len) return null;
 
-        if ((evbit[0] & (1 << c.EV_KEY)) != 0) {
-            var keybit: [768 / 32]u32 = [_]u32{0} ** (768 / 32);
-            _ = c.ioctl(fd, c.EVIOCGBIT(c.EV_KEY, @sizeOf(@TypeOf(keybit))), &keybit);
+    @memcpy(path_buffer[0..prefix.len], prefix);
+    @memcpy(path_buffer[prefix.len..total_length], entry_name);
+    path_buffer[total_length] = 0;
+    return @ptrCast(path_buffer[0..total_length :0]);
+}
 
-            const space_bit = c.KEY_SPACE;
-            if ((keybit[space_bit / 32] & (@as(u32, 1) << (space_bit % 32))) != 0) {
-                return try allocator.dupe(u8, path);
-            }
+fn findKeyboardDeviceDescriptor() ?c_int {
+    const directory = c_bindings.opendir(event_path) orelse return null;
+    defer _ = c_bindings.closedir(directory);
+
+    var path_buffer: [DEVICE_PATH_BUFFER_LENGTH]u8 = undefined;
+
+    while (c_bindings.readdir(directory)) |entry| {
+        const entry_name = std.mem.span(@as([*:0]const u8, @ptrCast(&entry.d_name)));
+        if (entry_name.len == 0 or entry_name[0] == '.') continue;
+
+        const device_path = buildDevicePath(entry_name, &path_buffer) orelse continue;
+        const file_descriptor = c_bindings.open(device_path, c_bindings.O_RDONLY | c_bindings.O_NONBLOCK);
+        if (file_descriptor < 0) continue;
+
+        if (isKeyboardDevice(file_descriptor)) {
+            return file_descriptor;
         }
+
+        _ = c_bindings.close(file_descriptor);
     }
 
     return null;
@@ -51,128 +69,117 @@ fn findKeyboard() !?[]u8 {
 
 fn convertAsciiToLinuxMagicCode(ascii: u8) u8 {
     return switch (ascii) {
-        // Control characters
-        27 => 1, // ESC
-        8 => 14, // Backspace
-        9 => 15, // Tab
-        13 => 28, // Enter (prioritize main ENTER over keypad ENTER (96))
-        32 => 57, // Spa
-        49 => 2, // '1'
-        50 => 3, // '2'
-        51 => 4, // '3'
-        52 => 5, // '4'
-        53 => 6, // '5'
-        54 => 7, // '6'
-        55 => 8, // '7'
-        56 => 9, // '8'
-        57 => 10, // '9'
-        48 => 11, // '
-        45 => 12, // '-'
-        61 => 13, // '='
-        91 => 26, // '['
-        93 => 27, // ']'
-        59 => 39, // ';'
-        39 => 40, // '''
-        96 => 41, // '`'
-        92 => 43, // '\'
-        44 => 51, // ','
-        46 => 52, // '.' (main keyboard)
-        47 => 53, // '
-        97 => 30, // 'a'
-        98 => 48, // 'b'
-        99 => 46, // 'c'
-        100 => 32, // 'd'
-        101 => 18, // 'e'
-        102 => 33, // 'f'
-        103 => 34, // 'g'
-        104 => 35, // 'h'
-        105 => 23, // 'i'
-        106 => 36, // 'j'
-        107 => 37, // 'k'
-        108 => 38, // 'l'
-        109 => 50, // 'm'
-        110 => 49, // 'n'
-        111 => 24, // 'o'
-        112 => 25, // 'p'
-        113 => 16, // 'q'
-        114 => 19, // 'r'
-        115 => 31, // 's'
-        116 => 20, // 't'
-        117 => 22, // 'u'
-        118 => 47, // 'v'
-        119 => 17, // 'w'
-        120 => 45, // 'x'
-        121 => 21, // 'y'
-        122 => 44, // '
-        42 => 55, // '*' (keypad)
-        43 => 78, // '+' (keypad)
-        40 => 179, // '(' (keypad)
-        41 => 180, // ')' (keypa
-        else => 0, // Unmapped
+        27 => 1,
+        8 => 14,
+        9 => 15,
+        13 => 28,
+        32 => 57,
+        49 => 2,
+        50 => 3,
+        51 => 4,
+        52 => 5,
+        53 => 6,
+        54 => 7,
+        55 => 8,
+        56 => 9,
+        57 => 10,
+        48 => 11,
+        45 => 12,
+        61 => 13,
+        91 => 26,
+        93 => 27,
+        59 => 39,
+        39 => 40,
+        96 => 41,
+        92 => 43,
+        44 => 51,
+        46 => 52,
+        47 => 53,
+        97 => 30,
+        98 => 48,
+        99 => 46,
+        100 => 32,
+        101 => 18,
+        102 => 33,
+        103 => 34,
+        104 => 35,
+        105 => 23,
+        106 => 36,
+        107 => 37,
+        108 => 38,
+        109 => 50,
+        110 => 49,
+        111 => 24,
+        112 => 25,
+        113 => 16,
+        114 => 19,
+        115 => 31,
+        116 => 20,
+        117 => 22,
+        118 => 47,
+        119 => 17,
+        120 => 45,
+        121 => 21,
+        122 => 44,
+        42 => 55,
+        43 => 78,
+        40 => 179,
+        41 => 180,
+        else => 0,
     };
 }
 
-fn init(alloc: Allocator) !void {
-    allocator = alloc;
-
-    for (&keymap_buffer) |*slot| {
-        slot.* = false;
-    }
+fn init(_: Allocator) !void {
+    @memset(&keymap_buffer, false);
     @memcpy(&last_keymap_buffer, &keymap_buffer);
 
-    const path = try findKeyboard() orelse return;
-    defer allocator.free(path);
-    input_device_fd = c.open(path.ptr, c.O_RDONLY | c.O_NONBLOCK);
+    input_device_descriptor = findKeyboardDeviceDescriptor() orelse return;
 
-    initalised = true;
+    is_initialized = true;
 }
 
 fn update() void {
-    if (!initalised)
-        return;
+    if (!is_initialized) return;
 
     @memcpy(&last_keymap_buffer, &keymap_buffer);
 
-    var event: c.input_event = undefined;
+    var event: c_bindings.input_event = undefined;
 
     while (true) {
-        const bytes_read = c.read(input_device_fd, &event, @sizeOf(c.input_event));
-        if (bytes_read < @sizeOf(c.input_event)) break;
+        const bytes_read = c_bindings.read(input_device_descriptor, &event, @sizeOf(c_bindings.input_event));
+        if (bytes_read < @sizeOf(c_bindings.input_event)) break;
+        if (event.type != c_bindings.EV_KEY) continue;
+        if (event.code >= KEYMAP_BUFFER_LENGTH) continue;
 
-        if (event.type == c.EV_KEY) {
-            if (event.code < BUFFER_LEN) {
-                keymap_buffer[event.code] = event.value != 0;
-            }
-        }
+        keymap_buffer[event.code] = (event.value != 0);
     }
 }
 
 fn deinit() void {
-    if (!initalised)
-        return;
+    if (!is_initialized) return;
 
-    _ = c.close(input_device_fd);
-    initalised = false;
+    _ = c_bindings.close(input_device_descriptor);
+    is_initialized = false;
 }
 
-fn getKey(k: u8) bool {
-    return keymap_buffer[convertAsciiToLinuxMagicCode(k)];
+fn getKey(key: u8) bool {
+    return keymap_buffer[convertAsciiToLinuxMagicCode(key)];
 }
 
-fn getKeyDown(k: u8) bool {
-    if (last_keymap_buffer[convertAsciiToLinuxMagicCode(k)]) return false;
-    return getKey(k);
+fn getKeyDown(key: u8) bool {
+    if (last_keymap_buffer[convertAsciiToLinuxMagicCode(key)]) return false;
+    return getKey(key);
 }
 
-fn getKeyUp(k: u8) bool {
-    if (!last_keymap_buffer[convertAsciiToLinuxMagicCode(k)]) return false;
-    return !getKey(k);
+fn getKeyUp(key: u8) bool {
+    if (!last_keymap_buffer[convertAsciiToLinuxMagicCode(key)]) return false;
+    return !getKey(key);
 }
 
 fn keyPressed() bool {
-    if (!initalised) return false;
-    for (keymap_buffer) |key| {
-        if (key) return true;
+    if (!is_initialized) return false;
+    for (keymap_buffer) |is_key_pressed| {
+        if (is_key_pressed) return true;
     }
     return false;
 }

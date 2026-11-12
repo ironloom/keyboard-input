@@ -1,5 +1,5 @@
 const std = @import("std");
-const Allocator = @import("std").mem.Allocator;
+const Allocator = std.mem.Allocator;
 
 const Self = @This();
 
@@ -13,7 +13,7 @@ getKeyUp: fn (key: u8) bool,
 keyPressed: fn () bool,
 
 /// Sets up the Inputter
-init: fn (alloc: Allocator) anyerror!void,
+init: fn (allocator: Allocator) anyerror!void,
 /// Call every frame to update keystate
 update: fn () void,
-deinit: fn () void
+deinit: fn () void,
